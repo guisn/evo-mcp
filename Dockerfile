@@ -19,5 +19,8 @@ RUN npm install -g supergateway
 # Copy the rest of your application files (including index2.js)
 COPY . .
 
+# Expose the port (optional, for documentation)
+EXPOSE 8000
+
 # Command to run your MCP server with Supergateway
 CMD ["npx", "-y", "supergateway", "--stdio", "node index.js", "--port", "8000"]
