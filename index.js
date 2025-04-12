@@ -16,7 +16,7 @@ const getEnv = (varName, defaultValue = undefined) => {
   return value || defaultValue;
 };
 
-// --- Zod Schemas for Tool Inputs ---
+// --- Zod Schemas for Tool Inputs (Remain mostly the same, as they define inputs, not API payload structure) ---
 const schemas = {
   toolInputs: {
     // --- Instance ---
@@ -72,6 +72,7 @@ const schemas = {
           quoted: z.object({ // Simplified quoted message - assuming key is sufficient
              key: z.object({ id: z.string() }).describe("Key of the message to quote (use message ID).")
           }).optional().describe("Message to quote."),
+          // linkPreview: z.boolean().optional(), // Included in Postman, add if needed
           mentionsEveryOne: z.boolean().optional().default(false).describe("Mention everyone in the group."),
           mentioned: z.array(z.string()).optional().describe("List of JIDs to mention."),
       }).optional()
@@ -128,14 +129,14 @@ const schemas = {
     }),
     send_contact: z.object({
       number: z.string().describe("Recipient's phone number or group JID."),
-      contacts: z.array(z.object({
+      contacts: z.array(z.object({ // Renamed field to 'contacts' for clarity matching tool def
         fullName: z.string().describe("Full name of the contact."),
         wuid: z.string().describe("WhatsApp User ID (phone number with country code)."),
         phoneNumber: z.string().describe("Formatted phone number."),
         organization: z.string().optional().describe("Organization name."),
         email: z.string().optional().describe("Email address."),
         url: z.string().optional().describe("Website URL.")
-      })).describe("Array of contacts to send."),
+      })).min(1).describe("Array of contacts to send."), // Ensure min 1 contact
        options: z.object({
           delay: z.number().optional().describe("Delay in milliseconds before sending."),
           quoted: z.object({ key: z.object({ id: z.string() }) }).optional().describe("Message to quote (use message ID)."),
@@ -240,10 +241,10 @@ const schemas = {
     get_base64_from_media_message: z.object({
        messageKey: z.object({ // Using messageKey instead of full message object for simplicity
            id: z.string().describe("The ID of the media message."),
-           remoteJid: z.string().describe("JID of the chat where the message is."),
-           fromMe: z.boolean().describe("Was the message sent by the bot/instance?")
-           // participant might be needed for group messages
-       }).describe("Key identifying the media message."),
+           // Include other key parts if needed by the API, based on testing or more detailed docs
+           // remoteJid: z.string().describe("JID of the chat where the message is."),
+           // fromMe: z.boolean().describe("Was the message sent by the bot/instance?")
+       }).describe("Key identifying the media message (often just the ID is needed)."),
        convertToMp4: z.boolean().optional().default(false).describe("Convert audio to MP4 format?")
     }),
     update_message: z.object({
@@ -277,7 +278,7 @@ const schemas = {
         // Add other potential filter fields like messageType, messageTimestamp etc. if supported
       }).optional().describe("Criteria to filter messages."),
       page: z.number().int().positive().optional().default(1).describe("Page number for pagination."),
-      limit: z.number().int().positive().optional().default(10).describe("Number of messages per page.") // Renamed from 'offset' for clarity as limit
+      limit: z.number().int().positive().optional().default(10).describe("Number of messages per page (maps to API's 'offset' parameter).") // Renamed from 'offset' for clarity, maps to API offset
     }),
      fetch_profile: z.object({
         number: z.string().describe("Phone number (with country code) or JID of the user/group.")
@@ -322,7 +323,7 @@ const schemas = {
     }),
     update_group_picture: z.object({
         groupJid: z.string().describe("The JID of the group."),
-        image: z.string().describe("URL or Base64 encoded string of the new group picture.")
+        image: z.string().describe("URL or Base64 encoded string of the new group picture.") // Use 'image' to match Postman body
     }),
      fetch_invite_code: z.object({
         groupJid: z.string().describe("The JID of the group.")
@@ -347,7 +348,7 @@ const schemas = {
      }),
      toggle_ephemeral: z.object({
         groupJid: z.string().describe("The JID of the group."),
-        expiration: z.enum([0, 86400, 604800, 7776000]).describe("Ephemeral message duration: 0 (Off), 86400 (24h), 604800 (7d), 7776000 (90d).")
+        expiration: z.number().refine(val => [0, 86400, 604800, 7776000].includes(val), { message: "Invalid expiration value. Use 0, 86400, 604800, or 7776000." }).describe("Ephemeral message duration: 0 (Off), 86400 (24h), 604800 (7d), 7776000 (90d).")
      }),
      leave_group: z.object({
         groupJid: z.string().describe("The JID of the group to leave.")
@@ -359,7 +360,7 @@ const schemas = {
   },
 };
 
-// --- Tool Definitions for MCP ---
+// --- Tool Definitions for MCP (Remain the same) ---
 const TOOL_DEFINITIONS = [
   // --- Instance ---
   {
@@ -462,6 +463,7 @@ const TOOL_DEFINITIONS = [
             properties: {
                 delay: { type: "integer", description: "Delay in ms." },
                 quoted: { type: "object", properties: { key: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } }, description: "Message key ID to quote." },
+                // linkPreview: { type: "boolean" },
                 mentioned: { type: "array", items: { type: "string" }, description: "List of JIDs to mention." }
             },
             required: [],
@@ -851,10 +853,10 @@ const TOOL_DEFINITIONS = [
                    type: "object",
                    properties: {
                        id: { type: "string", description: "Message ID." },
-                       remoteJid: { type: "string", description: "Chat JID." },
-                       fromMe: { type: "boolean", description: "Sent by bot?" }
+                       // remoteJid: { type: "string", description: "Chat JID." },
+                       // fromMe: { type: "boolean", description: "Sent by bot?" }
                    },
-                   required: ["id", "remoteJid", "fromMe"]
+                   required: ["id"] // Often only ID is required based on Postman example
               },
               convertToMp4: { type: "boolean", default: false, description: "Convert audio to MP4?" }
           },
@@ -934,7 +936,7 @@ const TOOL_DEFINITIONS = [
                    required: []
                },
                page: { type: "integer", default: 1, description: "Page number." },
-               limit: { type: "integer", default: 10, description: "Messages per page." }
+               limit: { type: "integer", default: 10, description: "Messages per page (maps to API offset)." }
            },
            required: []
        }
@@ -1156,7 +1158,7 @@ const TOOL_DEFINITIONS = [
         type: "object",
         properties: {
           groupJid: { type: "string", description: "Group JID." },
-          expiration: { type: "integer", enum: [0, 86400, 604800, 7776000], description: "Duration in seconds (0=off)." },
+          expiration: { type: "number", description: "Duration in seconds (0=off, 86400=24h, 604800=7d, 7776000=90d)." },
         },
         required: ["groupJid", "expiration"],
       },
@@ -1182,13 +1184,12 @@ const TOOL_DEFINITIONS = [
 
 // --- Tool Handler Implementations ---
 const toolHandlers = {
-  // --- Instance Handlers ---
+  // --- Instance Handlers (Assumed Correct Based on Initial Review) ---
   create_instance: async (args) => {
     const parsed = schemas.toolInputs.create_instance.parse(args);
     const apiKey = getEnv("EVOLUTION_APIKEY"); // Use global API key for creation
-    const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080"); // Default if not set
-
-    const url = `https://${apiBase}/instance/create`; // Assuming http for local default, adjust if needed
+    const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
+    const url = `https://${apiBase}/instance/create`;
     console.log(`Calling ${url} with args:`, parsed);
 
     try {
@@ -1228,15 +1229,13 @@ const toolHandlers = {
   },
 
   connect_instance: async (args) => {
-    // args is empty based on schema
     const instanceName = getEnv("EVOLUTION_INSTANCE");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-    // Assuming global apikey is NOT needed for connect, usually instance-specific or none
     const url = `https://${apiBase}/instance/connect/${instanceName}`;
     console.log(`Calling ${url}`);
 
     try {
-      const response = await axios.get(url); // No API key header usually
+      const response = await axios.get(url);
        let responseText = `Connection status/QR code fetched: ${JSON.stringify(response.data, null, 2)}`;
        if (response.data?.base64) {
            responseText += "\n\n(QR Code base64 data received, cannot display image here)";
@@ -1281,6 +1280,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with args:`, parsed);
 
         try {
+            // Payload matches Postman: { "presence": "..." }
             const response = await axios.post(url, parsed, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey }
             });
@@ -1349,7 +1349,7 @@ const toolHandlers = {
         }
     },
 
-  // --- Settings Handlers ---
+  // --- Settings Handlers (Assumed Correct Based on Initial Review) ---
   set_settings: async (args) => {
       const parsed = schemas.toolInputs.set_settings.parse(args);
       const instanceName = getEnv("EVOLUTION_INSTANCE");
@@ -1359,6 +1359,7 @@ const toolHandlers = {
       console.log(`Calling ${url} with args:`, parsed);
 
       try {
+           // Payload matches Postman: { "rejectCall": ..., ... }
           const response = await axios.post(url, parsed, {
               headers: { 'Content-Type': 'application/json', 'apikey': apiKey }
           });
@@ -1371,7 +1372,6 @@ const toolHandlers = {
   },
 
   find_settings: async (args) => {
-      // No args parsed
       const instanceName = getEnv("EVOLUTION_INSTANCE");
       const apiKey = getEnv("EVOLUTION_APIKEY");
       const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
@@ -1396,14 +1396,15 @@ const toolHandlers = {
     const instanceName = getEnv("EVOLUTION_INSTANCE");
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-
     const url = `https://${apiBase}/message/sendText/${instanceName}`;
-    console.log(`Calling ${url} with args:`, parsed);
+
+    // Payload matches Postman: { "number": ..., "text": ..., "options": {...} }
     const payload = {
         number: parsed.number,
-        text: parsed.text,
+        text: parsed.text, // Use 'text' field as per Postman
         options: parsed.options // Pass validated options directly
-    }
+    };
+    console.log(`Calling ${url} with payload:`, payload);
 
     try {
       const response = await axios.post(url, payload, {
@@ -1425,18 +1426,18 @@ const toolHandlers = {
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
     const url = `https://${apiBase}/message/sendMedia/${instanceName}`;
-     console.log(`Calling ${url} with args:`, parsed);
+
+     // Corrected: Payload matches Postman (flat structure)
      const payload = {
          number: parsed.number,
-         options: parsed.options, // Pass validated options
-         media: {
-             mediatype: parsed.mediatype,
-             mimetype: parsed.mimetype,
-             media: parsed.media, // URL or Base64
-             caption: parsed.caption,
-             fileName: parsed.fileName
-         }
+         options: parsed.options, // Keep options if they are separate
+         mediatype: parsed.mediatype,
+         mimetype: parsed.mimetype,
+         media: parsed.media, // URL or Base64
+         caption: parsed.caption,
+         fileName: parsed.fileName
      };
+     console.log(`Calling ${url} with payload:`, payload);
 
 
     try {
@@ -1459,15 +1460,14 @@ const toolHandlers = {
       const apiKey = getEnv("EVOLUTION_APIKEY");
       const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
       const url = `https://${apiBase}/message/sendPtv/${instanceName}`;
-      console.log(`Calling ${url} with args:`, parsed);
-        const payload = {
+
+      // Corrected: Payload matches Postman (uses 'video' field directly)
+      const payload = {
             number: parsed.number,
             options: parsed.options,
-            media: { // PTV often uses a nested media structure too
-                media: parsed.video,
-                mediatype: "video" // Assuming PTV is always video type
-            }
+            video: parsed.video // Use 'video' field directly
         };
+      console.log(`Calling ${url} with payload:`, payload);
 
       try {
           const response = await axios.post(url, payload, {
@@ -1487,15 +1487,14 @@ const toolHandlers = {
       const apiKey = getEnv("EVOLUTION_APIKEY");
       const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
       const url = `https://${apiBase}/message/sendWhatsAppAudio/${instanceName}`;
-      console.log(`Calling ${url} with args:`, parsed);
-        const payload = {
+
+      // Corrected: Payload matches Postman (uses 'audio' field directly)
+      const payload = {
             number: parsed.number,
             options: parsed.options,
-            media: { // Audio often uses a nested media structure too
-                media: parsed.audio,
-                mediatype: "audio"
-            }
+            audio: parsed.audio // Use 'audio' field directly
         };
+      console.log(`Calling ${url} with payload:`, payload);
 
       try {
           const response = await axios.post(url, payload, {
@@ -1515,15 +1514,14 @@ const toolHandlers = {
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
     const url = `https://${apiBase}/message/sendSticker/${instanceName}`;
-     console.log(`Calling ${url} with args:`, parsed);
-        const payload = {
+
+     // Corrected: Payload matches Postman (uses 'sticker' field directly)
+     const payload = {
             number: parsed.number,
             options: parsed.options,
-            media: { // Sticker often uses a nested media structure too
-                media: parsed.sticker,
-                mediatype: "sticker"
-            }
+            sticker: parsed.sticker // Use 'sticker' field directly
         };
+     console.log(`Calling ${url} with payload:`, payload);
 
     try {
       const response = await axios.post(url, payload, {
@@ -1545,17 +1543,17 @@ const toolHandlers = {
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
     const url = `https://${apiBase}/message/sendLocation/${instanceName}`;
-    console.log(`Calling ${url} with args:`, parsed);
+
+    // Corrected: Payload matches Postman (flat structure, uses 'latitude'/'longitude')
     const payload = {
         number: parsed.number,
         options: parsed.options,
-        location: {
-            degreesLatitude: parsed.latitude,
-            degreesLongitude: parsed.longitude,
-            name: parsed.name,
-            address: parsed.address
-        }
+        latitude: parsed.latitude, // Use 'latitude'
+        longitude: parsed.longitude, // Use 'longitude'
+        name: parsed.name,
+        address: parsed.address
     };
+    console.log(`Calling ${url} with payload:`, payload);
 
     try {
       const response = await axios.post(url, payload, {
@@ -1577,14 +1575,14 @@ const toolHandlers = {
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
     const url = `https://${apiBase}/message/sendContact/${instanceName}`;
-    console.log(`Calling ${url} with args:`, parsed);
+
+    // Corrected: Payload matches Postman (uses 'contact' array directly)
     const payload = {
         number: parsed.number,
         options: parsed.options,
-        contactMessage: { // Structure often involves a specific key
-            contacts: parsed.contacts
-        }
+        contact: parsed.contacts // Use 'contact' array directly from parsed 'contacts'
     };
+    console.log(`Calling ${url} with payload:`, payload);
 
     try {
       const response = await axios.post(url, payload, {
@@ -1606,10 +1604,16 @@ const toolHandlers = {
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
     const url = `https://${apiBase}/message/sendReaction/${instanceName}`;
-    console.log(`Calling ${url} with args:`, parsed);
+
+    // Corrected: Payload matches Postman (key and reaction are top-level)
+    const payload = {
+        key: parsed.key,
+        reaction: parsed.reaction
+    };
+    console.log(`Calling ${url} with payload:`, payload);
 
     try {
-      const response = await axios.post(url, { reactionMessage: parsed }, { // API might wrap it
+      const response = await axios.post(url, payload, { // Removed nesting like { reactionMessage: ... }
         headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       });
       return {
@@ -1628,16 +1632,16 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/message/sendPoll/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+        // Corrected: Payload matches Postman (flat structure)
         const payload = {
             number: parsed.number,
             options: parsed.options,
-            poll: {
-                name: parsed.name,
-                values: parsed.values,
-                selectableCount: parsed.selectableCount
-            }
+            name: parsed.name, // Use directly
+            values: parsed.values, // Use directly
+            selectableCount: parsed.selectableCount // Use directly
         };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1657,18 +1661,18 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/message/sendList/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+         // Corrected: Payload matches Postman (flat structure)
          const payload = {
             number: parsed.number,
             options: parsed.options,
-            listMessage: { // Structure often involves a specific key
-                 title: parsed.title,
-                 description: parsed.description,
-                 buttonText: parsed.buttonText,
-                 footerText: parsed.footerText,
-                 sections: parsed.sections
-            }
+            title: parsed.title,
+            description: parsed.description,
+            buttonText: parsed.buttonText,
+            footerText: parsed.footerText,
+            sections: parsed.sections
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1688,17 +1692,17 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/message/sendButtons/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+         // Corrected: Payload matches Postman (flat structure, uses 'description')
          const payload = {
             number: parsed.number,
             options: parsed.options,
-            buttonMessage: { // Structure often involves a specific key
-                 text: parsed.description, // Map description to text field
-                 title: parsed.title,
-                 footer: parsed.footer,
-                 buttons: parsed.buttons
-            }
+            title: parsed.title,
+            description: parsed.description, // Use 'description' directly
+            footer: parsed.footer,
+            buttons: parsed.buttons
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1722,6 +1726,7 @@ const toolHandlers = {
     console.log(`Calling ${url} with args:`, parsed);
 
     try {
+       // Payload matches Postman: { "numbers": [...] }
       const response = await axios.post(url, parsed, {
         headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       });
@@ -1744,6 +1749,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with args:`, parsed);
 
         try {
+            // Payload matches Postman: { "readMessages": [...] }
             const response = await axios.post(url, parsed, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
@@ -1761,12 +1767,14 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/archiveChat/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
-         // API might require lastMessage, adjust payload if needed based on testing
+
+         // Corrected: Payload matches Postman (uses 'chat' field, omits 'lastMessage' for simplicity)
          const payload = {
-             chatId: parsed.chat, // Map chat to chatId if API expects that
+             chat: parsed.chat, // Use 'chat' field
              archive: parsed.archive
+             // lastMessage: ... // Omitted as getting it reliably is hard here
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1787,8 +1795,13 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/markChatUnread/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
-        const payload = { chatId: parsed.chat }; // API might expect chatId
+
+        // Corrected: Payload matches Postman (uses 'chat' field, omits 'lastMessage')
+        const payload = {
+            chat: parsed.chat // Use 'chat' field
+             // lastMessage: ... // Omitted
+            };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1807,12 +1820,20 @@ const toolHandlers = {
     const instanceName = getEnv("EVOLUTION_INSTANCE");
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-    // Note: DELETE requests in Axios typically use the 'data' property for the body
-    const url = `https://${apiBase}/chat/deleteMessageForEveryone/${instanceName}`;
-     console.log(`Calling ${url} with key:`, parsed.key);
+    const url = `https://${apiBase}/chat/deleteMessageForEveryone/${instanceName}`; // Assuming POST is correct based on needing a body
+
+    // Corrected: Payload matches Postman body fields (key fields are top-level)
+    const payload = {
+        id: parsed.key.id,
+        remoteJid: parsed.key.remoteJid,
+        fromMe: parsed.key.fromMe,
+        participant: parsed.key.participant // Optional participant
+    };
+    console.log(`Calling ${url} with payload:`, payload);
 
     try {
-      const response = await axios.post(url, { message: { key: parsed.key } }, { // Often needs to be wrapped, e.g. { message: { key: ... } } or just { key: ... }
+        // Using POST as the original code did, assuming API accepts body this way
+      const response = await axios.post(url, payload, {
         headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       });
       return {
@@ -1834,6 +1855,7 @@ const toolHandlers = {
     console.log(`Calling ${url} with args:`, parsed);
 
     try {
+       // Payload matches Postman: { "number": "..." }
       const response = await axios.post(url, { number: parsed.number }, {
         headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       });
@@ -1853,17 +1875,20 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/getBase64FromMediaMessage/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+        // Payload matches Postman (nested message > key > id)
          const payload = {
-             message: { key: parsed.messageKey }, // API likely expects the key nested under 'message'
+             message: {
+                 key: { id: parsed.messageKey.id } // Send only the ID as per Postman example
+             },
              convertToMp4: parsed.convertToMp4
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
-            // Base64 data can be very long, maybe just confirm success?
              const responseText = response.data?.base64
                  ? `Successfully retrieved Base64 data for message ${parsed.messageKey.id}. (Data too long to display). Mimetype: ${response.data.mimetype}`
                  : `Media retrieval response for message ${parsed.messageKey.id}: ${JSON.stringify(response.data, null, 2)}`;
@@ -1877,7 +1902,6 @@ const toolHandlers = {
 
     update_message: async (args) => {
         const parsed = schemas.toolInputs.update_message.parse(args);
-         // Additional validation (already in Zod schema, but good practice)
          if (!parsed.key.fromMe) {
               return { content: [{ type: "text", text: "Error: Can only edit messages sent by the bot instance (fromMe must be true)." }] };
          }
@@ -1885,11 +1909,13 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/updateMessage/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+         // Corrected: Payload matches Postman (key and text are top-level)
          const payload = {
              key: parsed.key,
-             update: { text: parsed.text } // API might expect update payload nested
+             text: parsed.text // API expects 'text' at the top level
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1909,12 +1935,14 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/sendPresence/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+         // Corrected: Payload matches Postman (uses 'number', 'delay')
          const payload = {
-             chatId: parsed.number, // Map number to chatId
+             number: parsed.number, // Use 'number'
              presence: parsed.presence,
-             duration: parsed.delay // Map delay to duration if needed
+             delay: parsed.delay // Use 'delay'
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1933,12 +1961,14 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/chat/updateBlockStatus/${instanceName}`; // Note: Path correction if needed
-        console.log(`Calling ${url} with args:`, parsed);
+        const url = `https://${apiBase}/message/updateBlockStatus/${instanceName}`; // Corrected URL Path based on Postman
+
+         // Corrected: Payload matches Postman (uses 'number', 'status')
          const payload = {
-             jid: parsed.number, // Map number to jid
-             action: parsed.status // Map status to action
+             number: parsed.number, // Use 'number'
+             status: parsed.status // Use 'status'
          };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -1954,7 +1984,6 @@ const toolHandlers = {
     },
 
     find_contacts: async (args) => {
-        // const parsed = schemas.toolInputs.find_contacts.parse(args); // Parse if filters added
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
@@ -1962,8 +1991,8 @@ const toolHandlers = {
         console.log(`Calling ${url}`);
 
         try {
-            // Use POST with potentially empty body if required by API, or GET if allowed
-            const response = await axios.post(url, {}, { // Assuming POST based on Postman
+            // Payload matches Postman (POST with optional 'where' body)
+            const response = await axios.post(url, {}, { // Send empty body if no filters
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
             return { content: [{ type: "text", text: `Contacts found: ${JSON.stringify(response.data, null, 2)}` }] };
@@ -1980,14 +2009,15 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/chat/findMessages/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
-        // Adjust payload structure based on API requirements (e.g., pagination outside 'where')
+
+        // Corrected: Payload matches Postman (uses 'offset' instead of 'limit')
+        // Note: The API expects 'offset', while our tool input uses 'limit' for clarity. We map 'limit' to 'offset'.
         const payload = {
             where: parsed.where,
             page: parsed.page,
-            limit: parsed.limit // Use limit here
-            // offset: (parsed.page - 1) * parsed.limit // Calculate offset if API uses it
+            offset: parsed.limit // Map 'limit' input to 'offset' API parameter
         };
+        console.log(`Calling ${url} with payload:`, payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -2009,6 +2039,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with args:`, parsed);
 
         try {
+            // Payload matches Postman: { "number": "..." }
             const response = await axios.post(url, { number: parsed.number }, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
@@ -2028,6 +2059,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with args:`, parsed);
 
         try {
+            // Payload matches Postman: { "name": "..." }
             const response = await axios.post(url, { name: parsed.name }, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
@@ -2047,6 +2079,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with args:`, parsed);
 
         try {
+            // Payload matches Postman: { "status": "..." }
             const response = await axios.post(url, { status: parsed.status }, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
@@ -2066,7 +2099,8 @@ const toolHandlers = {
         console.log(`Calling ${url} with picture URL/Base64`);
 
         try {
-            const response = await axios.post(url, { url: parsed.picture }, { // API might expect { url: ... } or { picture: ... }
+            // Payload matches Postman: { "picture": "..." }
+            const response = await axios.post(url, { picture: parsed.picture }, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
             });
             return { content: [{ type: "text", text: `Profile picture update requested. Response: ${JSON.stringify(response.data, null, 2)}` }] };
@@ -2097,42 +2131,31 @@ const toolHandlers = {
 
   // --- Group Handlers ---
   create_group: async (args) => {
-    // Validate and parse input
     const parsed = schemas.toolInputs.create_group.parse(args);
     const instanceName = getEnv("EVOLUTION_INSTANCE");
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-  
-    // Construct the URL (the instanceName is appended as per other group endpoints)
     const url = `https://${apiBase}/group/create/${instanceName}`;
-    console.log(`Calling ${url} with args:`, parsed);
-  
-    const payload = {
-      subject: parsed.subject,
-      description: parsed.description,  // this is optional
-      participants: parsed.participants,
-    };
-  
+
+     // Corrected: Payload matches Postman (flat structure, uses 'subject')
+     const payload = {
+         subject: parsed.subject, // Use 'subject' directly
+         description: parsed.description,
+         participants: parsed.participants
+     };
+    console.log(`Calling ${url} with payload:`, payload);
+
     try {
       const response = await axios.post(url, payload, {
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": apiKey
-        }
+        headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
       });
       return {
-        content: [{
-          type: "text",
-          text: `Group '${parsed.subject}' creation initiated. Response: ${JSON.stringify(response.data, null, 2)}`
-        }]
+        content: [{ type: "text", text: `Group '${parsed.subject}' creation initiated. Response: ${JSON.stringify(response.data, null, 2)}` }],
       };
     } catch (error) {
-      console.error("Error calling create_group:", error.response?.data || error.message);
-      const errorText = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-      return { content: [{
-        type: "text",
-        text: `Error creating group: ${errorText}`
-      }] };
+       console.error("Error calling create_group:", error.response?.data || error.message);
+       const errorText = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+       return { content: [{ type: "text", text: `Error creating group: ${errorText}` }] };
     }
   },
 
@@ -2187,12 +2210,14 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/updateParticipant/${instanceName}`;
-        console.log(`Calling ${url} with query and body:`, parsed);
+        const url = `https://${apiBase}/group/updateParticipant/${instanceName}`; // groupJid goes in query
+
+        // Payload matches Postman body
         const payload = {
             action: parsed.action,
             participants: parsed.participants
         };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
 
         try {
             const response = await axios.post(url, payload, {
@@ -2212,11 +2237,15 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/updateGroupSubject/${instanceName}`;
-        console.log(`Calling ${url} with query and body:`, parsed);
+        const url = `https://${apiBase}/group/updateGroupSubject/${instanceName}`; // groupJid goes in query
+
+        // Payload matches Postman body
+        const payload = { subject: parsed.subject };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
+
 
         try {
-            const response = await axios.post(url, { subject: parsed.subject }, {
+            const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
             });
@@ -2233,11 +2262,14 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/updateGroupDescription/${instanceName}`;
-         console.log(`Calling ${url} with query and body:`, parsed);
+        const url = `https://${apiBase}/group/updateGroupDescription/${instanceName}`; // groupJid goes in query
+
+         // Payload matches Postman body
+        const payload = { description: parsed.description };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
 
         try {
-            const response = await axios.post(url, { description: parsed.description }, {
+            const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
             });
@@ -2254,12 +2286,15 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/updateGroupPicture/${instanceName}`;
-        console.log(`Calling ${url} with query and body:`, { groupJid: parsed.groupJid, image: 'URL/Base64 provided' });
+        const url = `https://${apiBase}/group/updateGroupPicture/${instanceName}`; // groupJid goes in query
+
+        // Corrected: Payload matches Postman body (uses 'image')
+        const payload = { image: parsed.image };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
 
 
         try {
-            const response = await axios.post(url, { url: parsed.image }, { // Assuming API expects { url: ... }
+            const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
             });
@@ -2299,7 +2334,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with query:`, parsed);
 
         try {
-            // Assuming POST based on Postman example
+            // Postman example uses POST with no body, groupJid in query
             const response = await axios.post(url, {}, {
                 headers: { 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
@@ -2317,7 +2352,9 @@ const toolHandlers = {
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
         const url = `https://${apiBase}/group/sendInvite/${instanceName}`;
-        console.log(`Calling ${url} with args:`, parsed);
+
+        // Payload matches Postman body
+        console.log(`Calling ${url} with payload:`, parsed);
 
         try {
             const response = await axios.post(url, parsed, {
@@ -2355,7 +2392,7 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/findGroupInfos/${instanceName}`; // Endpoint name adjusted based on Postman
+        const url = `https://${apiBase}/group/findGroupInfos/${instanceName}`;
         console.log(`Calling ${url} with query:`, parsed);
 
         try {
@@ -2375,11 +2412,14 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/updateSetting/${instanceName}`;
-        console.log(`Calling ${url} with query and body:`, parsed);
+        const url = `https://${apiBase}/group/updateSetting/${instanceName}`; // groupJid in query
+
+        // Payload matches Postman body
+        const payload = { action: parsed.action };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
 
         try {
-            const response = await axios.post(url, { action: parsed.action }, {
+            const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
             });
@@ -2395,11 +2435,14 @@ const toolHandlers = {
         const instanceName = getEnv("EVOLUTION_INSTANCE");
         const apiKey = getEnv("EVOLUTION_APIKEY");
         const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
-        const url = `https://${apiBase}/group/toggleEphemeral/${instanceName}`;
-        console.log(`Calling ${url} with query and body:`, parsed);
+        const url = `https://${apiBase}/group/toggleEphemeral/${instanceName}`; // groupJid in query
+
+        // Payload matches Postman body
+        const payload = { expiration: parsed.expiration };
+        console.log(`Calling ${url} with query:`, { groupJid: parsed.groupJid }, " and body:", payload);
 
         try {
-            const response = await axios.post(url, { expiration: parsed.expiration }, {
+            const response = await axios.post(url, payload, {
                 headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
             });
@@ -2420,6 +2463,7 @@ const toolHandlers = {
         console.log(`Calling ${url} with query:`, parsed);
 
         try {
+            // DELETE request with groupJid in query params
             const response = await axios.delete(url, {
                 headers: { 'apikey': apiKey },
                 params: { groupJid: parsed.groupJid }
@@ -2455,7 +2499,7 @@ const toolHandlers = {
 // --- MCP Server Setup ---
 const server = new Server({
   name: "evolution-api-tools-server",
-  version: "1.1.0", // Incremented version
+  version: "1.1.1", // Incremented version after fixes
 }, {
   capabilities: {
     tools: {},
@@ -2487,14 +2531,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return result;
   } catch (error) {
     console.error(`Error executing tool ${name}:`, error);
-    // Ensure error is propagated correctly for MCP client
-    // Re-throw or create a specific error structure if needed
      if (error instanceof z.ZodError) {
-        // Provide more specific validation error feedback
         const message = `Input validation failed for tool ${name}: ${error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`;
          console.error(message);
-        // Throwing the original ZodError might expose too much detail; craft a user-friendly message
-         throw new Error(message);
+         throw new Error(message); // Throw a user-friendly error
+     }
+     // Include API error response if available
+     if (error.response?.data) {
+        const apiErrorText = JSON.stringify(error.response.data);
+        console.error("API Error Response:", apiErrorText);
+        throw new Error(`API Error for tool ${name}: ${apiErrorText} (Original: ${error.message})`);
      }
     throw error; // Propagate other errors
   }
@@ -2513,7 +2559,14 @@ const cmdArgs = process.argv.slice(2);
 if (cmdArgs.length > 0) {
     console.log("🛠️ Executing tool directly via command line...");
     const toolName = cmdArgs[0];
-    const inputArgs = cmdArgs[1] ? JSON.parse(cmdArgs[1]) : {};
+    let inputArgs = {};
+    try {
+        inputArgs = cmdArgs[1] ? JSON.parse(cmdArgs[1]) : {};
+    } catch (e) {
+        console.error("❌ Error parsing JSON input arguments:", e.message);
+        process.exit(1);
+    }
+
 
     // Log environment variables being used
     console.log("🔐 Environment variables loaded:");
