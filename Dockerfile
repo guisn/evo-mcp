@@ -1,4 +1,4 @@
-# Use Node.js 18.16.0 to match your local environment
+# Use Node.js 18.16.0
 FROM node:18.16.0
 
 # Set working directory inside the container
@@ -10,16 +10,16 @@ COPY package.json ./
 # Install dependencies (using the npm version bundled with node:18.16.0)
 RUN npm install
 
-# Install TypeScript globally (optional, per the guide)
+# Install TypeScript globally
 RUN npm install -g typescript
 
 # Install supergateway globally
 RUN npm install -g supergateway
 
-# Copy the rest of your application files (including index2.js)
+# Copy the rest of your application files
 COPY . .
 
-# Expose the port (optional, for documentation)
+# Expose the port
 EXPOSE 8000
 
 # Command to run your MCP server with Supergateway
