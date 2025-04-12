@@ -2097,31 +2097,42 @@ const toolHandlers = {
 
   // --- Group Handlers ---
   create_group: async (args) => {
+    // Validate and parse input
     const parsed = schemas.toolInputs.create_group.parse(args);
     const instanceName = getEnv("EVOLUTION_INSTANCE");
     const apiKey = getEnv("EVOLUTION_APIKEY");
     const apiBase = getEnv("EVOLUTION_API_BASE", "localhost:8080");
+  
+    // Construct the URL (the instanceName is appended as per other group endpoints)
     const url = `https://${apiBase}/group/create/${instanceName}`;
     console.log(`Calling ${url} with args:`, parsed);
-     const payload = {
-         group: { // API might expect data nested under 'group'
-             name: parsed.subject,
-             description: parsed.description,
-             participants: parsed.participants,
-         }
-     };
-
+  
+    const payload = {
+      subject: parsed.subject,
+      description: parsed.description,  // this is optional
+      participants: parsed.participants,
+    };
+  
     try {
       const response = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": apiKey
+        }
       });
       return {
-        content: [{ type: "text", text: `Group '${parsed.subject}' creation initiated. Response: ${JSON.stringify(response.data, null, 2)}` }],
+        content: [{
+          type: "text",
+          text: `Group '${parsed.subject}' creation initiated. Response: ${JSON.stringify(response.data, null, 2)}`
+        }]
       };
     } catch (error) {
-       console.error("Error calling create_group:", error.response?.data || error.message);
-       const errorText = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-       return { content: [{ type: "text", text: `Error creating group: ${errorText}` }] };
+      console.error("Error calling create_group:", error.response?.data || error.message);
+      const errorText = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      return { content: [{
+        type: "text",
+        text: `Error creating group: ${errorText}`
+      }] };
     }
   },
 
