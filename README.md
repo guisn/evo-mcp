@@ -1,4 +1,4 @@
-# MCP Evo Supergateway
+# MCP Evolution API Supergateway
 
 MCP Evo Supergateway is gateway application to interface with the Evolution API. 
 It sets up an stdio MCP server defined in `index.js` and exposes it as a server-sent events (SSE) endpoint, making it ideal for remote connections or integration with tools like n8n.
