@@ -1,5 +1,5 @@
 # Use Node.js 23
-FROM 23-alpine3.21
+FROM node:23-alpine3.21
 
 # Set working directory inside the container
 WORKDIR /app
